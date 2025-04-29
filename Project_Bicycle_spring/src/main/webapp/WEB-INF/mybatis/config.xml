@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration
+  PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-config.dtd">
+  
+<configuration>
+<!-- 별칭 -->
+   <typeAliases>
+  	<typeAlias type="com.mbc.domain.BicycleAdmin" alias="BicycleAdmin"/>
+  	<typeAlias type="com.mbc.domain.BicycleMember" alias="BicycleMember"/>
+  	<typeAlias type="com.mbc.domain.BicycleCategory" alias="BicycleCategory"/>
+  	<typeAlias type="com.mbc.domain.BicycleProduct" alias="BicycleProduct"/>
+  	<typeAlias type="com.mbc.domain.BicycleKind" alias="BicycleKind"/>
+  	<typeAlias type="com.mbc.domain.BicycleBuy" alias="BicycleBuy"/>
+  </typeAliases> 
+</configuration>

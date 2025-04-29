@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>서울시 보행자무단횡단 사고다발 지역</title>
+    <!-- 카카오맵 Open API 참조정보 -->
+<!-- 0b2092b05714b13aa8a66e091f7e3229 -->
+    <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=196d4b56ea55c6fa26012b68f414069a"></script>
+    <!-- Axios cdn 정보 -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script> <!-- axios 추가 -->
+    <style>
+        #map {
+            width: 100%;
+            height: 700px;
+            border-radius: 10px;
+            border: 1px ;
+        }
+        #button {
+            text-align: center;
+            margin: 20px;
+        }
+        #totalAccidents {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            color: blue;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h2 style="text-align:center;">서울시 보행자무단횡단 사고다발 지역</h2>
+
+    <!-- 총 사고 건수 표시 -->
+    <div id="totalAccidents">
+        총 사고 건수: <strong>0</strong> 건
+    </div>
+
+    <!-- 버튼 추가 -->
+    <div id="button">
+        <button onclick="showAccidents()">서울시 보행자무단횡단 사고다발 지역</button>
+    </div>
+
+    <div id="map"></div>
+
+
+    <script>
+        // 지도 초기화
+        var mapContainer = document.getElementById('map');
+        var mapOption = {
+            center: new kakao.maps.LatLng(37.5665, 126.9780), // 서울 중심
+            level: 9
+        };
+        var map = new kakao.maps.Map(mapContainer, mapOption);
+
+        var circles = [];  // 기존 원 저장 배열
+        var overlays = []; // 추가된 텍스트 오버레이 저장 배열
+
+        function showAccidents() {
+            axios.get('/get_pedestrian_data')
+                .then(function (response) {
+                    const responseData = response.data;
+
+                    if (!responseData || !responseData.pedestrian_data) {
+                        alert("서버에서 데이터를 받지 못했습니다.");
+                        return;
+                    }
+
+                    const pedestrianData = responseData.pedestrian_data;
+                    const totalAccidents = responseData.total_accidents || 0; // undefined 방지
+
+                    // 총 사고 건수 표시 업데이트
+                    document.getElementById("totalAccidents").innerHTML = `총 사고 건수: <strong>${totalAccidents}</strong> 건`;
+
+                    // 사고 데이터가 없으면 경고 메시지 출력
+                    if (pedestrianData.length === 0) {
+                        alert("사고 데이터가 없습니다.");
+                        return;
+                    }
+
+                    // 기존 원 및 텍스트 오버레이 제거
+                    circles.forEach(circle => circle.setMap(null));
+                    overlays.forEach(overlay => overlay.setMap(null));
+                    circles = [];
+                    overlays = [];
+
+                    // 사고 데이터 ( {구이름,사고건수,위도평균,경도평균} 딕셔너리들의 리스트 25개) 를 하나씩 꺼내와 지도에 표시
+                    pedestrianData.forEach(accident => {
+                        let radius = Math.max(200, accident.accidents * 50); // 최소 반경 200 유지
+
+                        // 원 생성
+                        let circle = new kakao.maps.Circle({
+                            center: new kakao.maps.LatLng(accident.lat, accident.lng),
+                            radius: radius,
+                            strokeWeight: 2,
+                            strokeColor: "#FF0000",
+                            strokeOpacity: 0.8,
+                            fillColor: "#FF0000",
+                            fillOpacity: 0.3
+                        });
+
+                        circle.setMap(map);
+                        circles.push(circle);
+
+                        // 사고 건수만 표시할 오버레이 (배경 없음)
+                        let content = `<div style="font-size: 14px; font-weight: bold; color: black;">${accident.accidents}</div>`;
+
+                        let customOverlay = new kakao.maps.CustomOverlay({
+                            position: new kakao.maps.LatLng(accident.lat, accident.lng),
+                            content: content,
+                            yAnchor: 0.5 // 텍스트 위치 조정
+                        });
+
+                        customOverlay.setMap(map);
+                        overlays.push(customOverlay);
+                    });
+                })
+                .catch(function (error) {
+                    console.error("API 요청 오류:", error);
+                });
+        }
+    </script>
+</body>
+</html>

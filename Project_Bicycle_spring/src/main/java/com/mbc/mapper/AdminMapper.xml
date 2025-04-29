@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mbc.mapper.AdminMapper">
+
+  <!-- 관리자 로그인 -->
+  <select id="adminLogin" resultType="BicycleAdmin">
+    select id,password,name from tbl_bicycle_admin
+    where id=#{id}
+  </select> 
+  
+  <!-- 카테고리 등록 -->
+  <insert id="cateInputOk">
+  	insert into tbl_bicycle_category (code,cat_name)
+  	values(#{code},#{cat_name});
+  </insert>
+
+  <!-- 카테고리 리스트 -->
+  <select id="cateList" resultType="BicycleCategory">
+  	select cat_num,code,cat_name from tbl_bicycle_category;
+  </select>
+  
+  <!-- 카테고리 삭제 -->
+  <delete id="cateDelete">
+    delete from tbl_bicycle_category where cat_num = #{cat_num}; 
+  </delete>
+  
+  
+  <!-- 이용권 상품 등록 -->  
+  <insert id="productRegisterOk" parameterType="Map">
+      INSERT INTO tbl_bicycle_product(pname,pcategory_fk,pqty,price,pcontent,point) VALUES(#{pname},#{pcategory_fk},#{pqty},#{price},#{pcontent},#{point})
+  </insert>
+  
+  <!-- 상품 전체 리스트 -->
+  <select id="productList" resultType="BicycleProduct">
+     select * from tbl_bicycle_product ORDER BY pnum DESC;
+  </select>
+  
+  
+  <!-- 상품 상세정보 -->   
+  <select id="getProduct" resultType="BicycleProduct">
+    select * from tbl_bicycle_product where pnum = #{pnum};
+  </select>
+
+ <!-- 상품 수정하기 -->
+ <update id="productUpdateOk">
+    update tbl_bicycle_product 
+    set pname = #{pname}, 
+        pcategory_fk = #{pcategory_fk},
+        pqty = #{pqty},
+        price = #{price},
+        pcontent = #{pcontent},
+        point = #{point}
+    where pnum = #{pnum}                        
+ </update>
+
+ <!-- 상품 삭제 -->
+ <delete id="productDelete" parameterType="Integer">
+     DELETE FROM tbl_bicycle_product WHERE pnum = #{pnum}
+ </delete> 
+
+
+  
+  <select id="categoryBookList" resultType="BicycleProduct">
+    select * from tbl_bicycle_product where pcategory_fk = #{code};
+  </select>
+  
+  <select id="specBookList" resultType="BicycleProduct">
+    select * from tbl_bicycle_product where pspec = #{spec};
+  </select>
+  
+  
+</mapper>

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mbc.mapper.MemberMapper">
+  <select id="memberLogin" resultType="BicycleMember">
+    select id,pw,name,tel,email from tbl_bicycle_member
+    where id=#{id}
+  </select> 
+  <insert id="userJoinOk" >
+  	insert into tbl_bicycle_member(id,pw,name,tel,email,addr,rdate) values(#{id},#{pw},#{name},#{tel},#{email},#{addr},now());
+  </insert>
+  <select id = "userIdDupCheck" resultType="BicycleMember">
+  	select * from tbl_bicycle_member where id=#{uid}
+  </select>
+  <select id="memberList" resultType="BicycleMember">
+  	select * from tbl_bicycle_member
+  </select>
+  <select id="getMemberInfo" resultType="BicycleMember">
+    select * from tbl_bicycle_member where id = #{id}
+  </select>
+  <update id="memberUpdate" parameterType = "BicycleMember">
+  	update tbl_bicycle_member 
+  	set tel=#{tel}, email=#{email}, addr=#{addr}
+  	where id = #{id}
+  </update>
+  <delete id="memberDelete">
+  	delete from tbl_bicycle_member
+  	where id = #{id}
+  </delete>
+  
+  <select id = "idFind" resultType="BicycleMember">
+  	select * from tbl_bicycle_member 
+  	where name= #{name} and email= #{email} 
+  </select>
+
+</mapper>

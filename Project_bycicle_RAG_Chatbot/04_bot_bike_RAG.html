@@ -1,0 +1,217 @@
+<!-- const apiKey = "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"; -->
+<!-- 따릉이 챗봇 (RAG) -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>따릉이 챗봇 (Embedding RAG)</title>
+
+  <!-- axios: HTTP 요청을 위한 외부 라이브러리 -->
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+  <!-- 공통 스타일 정의 (채팅 UI 관련 CSS 포함) -->
+  <link rel="stylesheet" href="common.css" />
+</head>
+<body>
+
+  <!-- 챗봇 열기/닫기 버튼 (SVG 아이콘 포함) -->
+  <button id="chat-toggle-btn">
+    <svg id="toggle-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+      <path d="M12 2C6.48 2 2 5.94 2 10.5c0 2.18 1.14 4.14 3 5.53V22l4.03-2.36c.94.23 1.94.36 2.97.36 5.52 0 10-3.94 10-8.5S17.52 2 12 2z" fill="white"/>
+      <path d="M9 15c.8.9 2 1.4 3 1.4s2.2-.5 3-1.4" fill="none" stroke="#007bff" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <!-- 챗봇 UI 전체 영역 -->
+  <div id="chat-widget" style="display:none;">
+    <div id="chat-header">따릉이 챗봇</div> <!-- 챗봇 상단 헤더 -->
+    <div id="chat-container"></div>        <!-- 채팅 메시지 표시 영역 -->
+    <div id="input-area">                  <!-- 사용자 입력 영역 -->
+      <div class="input-wrapper">
+        <input type="text" id="userInput" placeholder="따릉이에 대해 궁금한 점을 입력하세요." autocomplete="off"/>
+        <button id="sendBtn" onclick="sendToChatbot()">
+          <img src="send.png" alt="Send" />
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // OpenAI API 키 설정 (실제 서비스에서는 서버에서 관리하거나 보안처리 필요)
+    const apiKey = "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";
+
+    let isFirstOpen = true;         // 처음 열었는지 여부
+    let isChatOpen = false;         // 챗봇 열림 여부
+    let contentData = [];           // FAQ/QnA 데이터 저장 배열
+
+    // 불러올 JSON 파일 목록 (FAQ + 7개 카테고리별 QnA)
+    const files = [
+      "seoulbike_faq_vector.json",
+      "bike_qna_1_대여 및 반납_vector.json",
+      "bike_qna_2_자전거 추가배치_vector.json",
+      "bike_qna_3_대여소(개설_폐쇄)_vector.json",
+      "bike_qna_4_결제_환불_마일리지_vector.json",
+      "bike_qna_5_운영 및 정책_vector.json",
+      "bike_qna_6_자전거 및 시설관리_vector.json",
+      "bike_qna_7_앱 또는 홈페이지 문의_vector.json"
+    ];
+
+    // 위의 JSON 파일들을 모두 로딩
+    async function loadData() {
+      for (const file of files) {
+        const res = await fetch(file);
+        const json = await res.json();
+        contentData.push(...json); // 배열에 항목 추가
+      }
+      console.log("총 로딩된 항목 수:", contentData.length);
+    }
+
+    loadData(); // 페이지 초기화 시 데이터 로딩 시작
+
+    // 채팅 메시지를 대화창에 추가
+    function appendMessage(role, html) {
+      const chat = document.getElementById("chat-container");
+      const msg = document.createElement("div");
+      msg.className = "message " + (role === "user" ? "user" : "bot");
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.innerHTML = html;
+
+      msg.appendChild(bubble);
+      chat.appendChild(msg);
+      chat.scrollTop = chat.scrollHeight; // 자동 스크롤
+    }
+
+    // 질문에서 조사나 어미 제거하여 키워드 추출
+    function extractKeywords(text) {
+      const raw = text.toLowerCase()
+        .replace(/[^가-힣a-z0-9\s]/g, "")
+        .split(/\s+/)
+        .filter(w => w.length > 1); // 2자 이상 단어만 유지
+
+      const suffixes = ["은", "는", "이", "가", "을", "를", "에", "에서", "하다", "한가요", "하나요", "인가요", "나요"];
+
+      return raw.map(word => {
+        for (let s of suffixes) {
+          if (word.endsWith(s) && word.length > s.length) {
+            return word.slice(0, -s.length); // 조사 제거
+          }
+        }
+        return word;
+      });
+    }
+
+    // 사용자 질문을 임베딩 벡터로 변환
+    async function getEmbedding(text) {
+      const res = await axios.post("https://api.openai.com/v1/embeddings", {
+        input: text,
+        model: "text-embedding-ada-002"
+      }, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        }
+      });
+      return res.data.data[0].embedding;
+    }
+
+    // 두 벡터의 코사인 유사도 계산
+    function cosineSimilarity(a, b) {
+      const dot = a.reduce((sum, val, i) => sum + val * b[i], 0); // 내적
+      const normA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
+      const normB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
+      return dot / (normA * normB);
+    }
+
+    // 사용자가 질문을 입력했을 때 실행되는 메인 함수
+    async function sendToChatbot() {
+      const input = document.getElementById("userInput");
+      const question = input.value.trim();
+      if (!question) return;
+
+      appendMessage("user", question); // 사용자 메시지 출력
+      input.value = "";
+
+      const userEmbedding = await getEmbedding(question); // 질문 임베딩 생성
+      const keywords = extractKeywords(question);         // 키워드 추출
+
+      // 각 콘텐츠 항목에 대해 유사도 및 키워드 일치 점수 계산
+      const scored = contentData.map(item => {
+        const text = (item.question || item.title || "") + " " + (item.answer || item.desc || "");
+
+        const keywordScore = keywords.reduce((score, kw) => {
+          return score + (text.includes(kw) ? 0.5 : 0); // 키워드 하나당 0.5점
+        }, 0);
+
+        const simScore = cosineSimilarity(userEmbedding, item.vector); // 임베딩 유사도
+        const finalScore = simScore * 0.7 + keywordScore * 0.3;         // 가중 합산
+
+        return { ...item, score: finalScore };
+      });
+
+      // 상위 3개 항목 선택
+      const top = scored.sort((a, b) => b.score - a.score).slice(0, 3);
+
+      // 유사한 항목이 없을 경우 안내
+      if (top.length === 0) {
+        appendMessage("bot", "죄송합니다. 관련된 정보를 찾을 수 없었습니다.");
+        return;
+      }
+
+      // GPT에게 전달할 참고용 문맥 구성
+      const context = top.map(item =>
+        `• ${item.question || item.title}: ${item.answer || item.desc}`
+      ).join("\n\n");
+
+      // GPT 모델에게 전달할 메시지 배열 구성
+      const messages = [
+        { role: "system", content: "당신은 따릉이(서울 자전거)에 대해 안내하는 챗봇입니다. 반드시 제공된 정보 내에서만 답변하세요." },
+        { role: "user", content: `질문: ${question}\n\n정보:\n${context}\n\n위 내용을 바탕으로 답변하세요.` }
+      ];
+
+      // ChatGPT API 호출 (gpt-3.5-turbo)
+      const res = await axios.post("https://api.openai.com/v1/chat/completions", {
+        model: "gpt-3.5-turbo",
+        messages
+      }, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      // 응답에서 텍스트 추출 및 출력 (줄바꿈 처리)
+      const reply = res.data.choices[0].message.content.replace(/\n/g, "<br>");
+      appendMessage("bot", reply);
+    }
+
+    // 챗봇 열기/닫기 버튼 클릭 이벤트
+    document.getElementById("chat-toggle-btn").addEventListener("click", () => {
+      const widget = document.getElementById("chat-widget");
+      const toggleBtn = document.getElementById("chat-toggle-btn");
+      const icon = document.getElementById("toggle-icon");
+
+      isChatOpen = !isChatOpen;
+      widget.style.display = isChatOpen ? "flex" : "none"; // 보이기/숨기기 전환
+      toggleBtn.style.backgroundColor = isChatOpen ? "#e0e0e0" : "#007bff";
+
+      // 버튼 아이콘 변경 (닫기/말풍선)
+      icon.innerHTML = isChatOpen
+        ? '<path d="M18 6L6 18M6 6l12 12" stroke="#444" stroke-width="3" stroke-linecap="round" fill="none"/>'
+        : '<path d="M12 2C6.48 2 2 5.94 2 10.5c0 2.18 1.14 4.14 3 5.53V22l4.03-2.36c.94.23 1.94.36 2.97.36 5.52 0 10-3.94 10-8.5S17.52 2 12 2z" fill="white"/><path d="M9 15c.8.9 2 1.4 3 1.4s2.2-.5 3-1.4" fill="none" stroke="#007bff" stroke-width="2" stroke-linecap="round" />';
+
+      // 처음 열었을 때 환영 메시지 출력
+      if (isChatOpen && isFirstOpen) {
+        appendMessage("bot", "안녕하세요! 따릉이 관련해서 무엇이 궁금하신가요?");
+        isFirstOpen = false;
+      }
+    });
+
+    // 입력창에서 Enter 키 누르면 질문 전송
+    document.getElementById("userInput").addEventListener("keydown", e => {
+      if (e.key === "Enter") sendToChatbot();
+    });
+  </script>
+</body>
+</html>
